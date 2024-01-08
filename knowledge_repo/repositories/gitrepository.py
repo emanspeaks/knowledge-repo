@@ -217,7 +217,7 @@ class GitKnowledgeRepository(KnowledgeRepository):
             branch.replace("*", "").strip()
             for branch in self.git.git.branch(
                 "--no-merged", self.config.published_branch
-            ).split("\n")
+            ).split("\n") if branch
         ]
         return unmerged_branches
 

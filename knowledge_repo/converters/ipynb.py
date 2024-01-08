@@ -4,7 +4,7 @@ from .._version import __optional_dependencies__
 import os
 
 TEMPLATE = '''
-{%- extends 'markdown.tpl' -%}
+{%- extends 'markdown/index.md.j2' -%}
 
 {%- block data_javascript scoped %}
 {% set div_id = uuid4() %}

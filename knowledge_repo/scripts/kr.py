@@ -1,6 +1,7 @@
 #!/usr/bin/env python
 
-import argparse
+from typing import Sequence
+from argparse import Namespace, Action, ArgumentParser
 import os
 import re
 import shutil
@@ -15,67 +16,73 @@ import git
 import gitdb
 from tabulate import tabulate
 
+# If this script is being run out of a checked out repository, we need to make
+# sure the appropriate knowledge_repo is being used. To do this, we add the
+# parent directory of the folder of the package if this package is named
+# "knowledge_repo".
+script_dir = Path(__file__).parent
+if script_dir.parent.name == 'knowledge_repo':
+    sys.path.insert(0, str(script_dir.parent.parent))
+import knowledge_repo  # nopep8 # noqa: E402
+from knowledge_repo import KnowledgeRepository  # noqa: E402
+from knowledge_repo.repositories.gitrepository import GitKnowledgeRepository  # nopep8 # noqa: E402, E501
 
-def main():
-    # Register handler for SIGTERM, so we can run cleanup code if we are terminated
-    signal.signal(signal.SIGTERM, lambda signum, frame: sys.exit(0))
-
-    # If this script is being run out of a checked out repository, we need to make sure
-    # the appropriate knowledge_repo is being used. To do this, we add the parent directory
-    # of the folder containing this script if it contains a python package named "knowledge_repo".
-    script_dir = Path(__file__).parent
-    if script_dir.parent.name == 'knowledge_repo':
-        sys.path.insert(0, str(script_dir.parent.parent))
-    import knowledge_repo  # nopep8
-    from knowledge_repo.repositories.gitrepository import GitKnowledgeRepository  # nopep8
-
-    # If there's a contrib folder, add this as well and import it
-    contrib_dir = str(script_dir.parent.parent/'contrib')
-    if os.path.exists(os.path.join(contrib_dir, '__init__.py')):
-        sys.path.insert(0, os.path.join(contrib_dir, '..'))
+# If there's a contrib folder, add this as well and import it
+contrib_dir = str(script_dir.parent.parent/'contrib')
+if os.path.exists(os.path.join(contrib_dir, '__init__.py')):
+    sys.path.insert(0, os.path.join(contrib_dir, '..'))
 
 
-    # We first check whether this script actually the one we are going to be using,
-    # or whether it should delegate tasks to a different script: namely the one hosted
-    # in a knowledge data repo (so that client and server both use the same version of the code,
-    # and updates can be done simultaneously and seamlessly). We do this by partially
-    # constructing the argument parser, and checking the provided repo. We do this before
-    # we finish constructing the entire parser so that the syntax and arguments can change
-    # from version to version of this script.
+# We first check whether this script actually the one we are going to be using,
+# or whether it should delegate tasks to a different script: namely the one
+# hosted in a knowledge data repo (so that client and server both use the same
+# version of the code, and updates can be done simultaneously and seamlessly).
+# We do this by partially constructing the argument parser, and checking the
+# provided repo. We do this before we finish constructing the entire parser so
+# that the syntax and arguments can change from version to version of
+# this script.
 
-    class ParseRepositories(argparse.Action):
+class ParseRepositories(Action):
+    def __init__(self, **kwargs):
+        super(ParseRepositories, self).__init__(**kwargs)
+        pattern = re.compile(r'^(?:\{(?P<name>[a-zA-Z_0-9]*)\})?(?P<uri>.*)$')
+        self.prefix_pattern = pattern
 
-        def __init__(self, **kwargs):
-            super(ParseRepositories, self).__init__(**kwargs)
-            self.prefix_pattern = re.compile(r'^(?:\{(?P<name>[a-zA-Z_0-9]*)\})?(?P<uri>.*)$')
+    def __call__(self, parser, namespace, values, option_string=None):
+        nmspc = getattr(namespace, self.dest)
+        if not nmspc or nmspc == self.default:
+            self._repo_dict = {}
+        repo = values
+        prefix = self.prefix_pattern.match(repo)
+        if not prefix:
+            raise ValueError(
+                "Be sure to specify repositories in form {name}uri when "
+                "specifying more than one repository."
+            )
+        name, uri = prefix.groups()
+        if name in self._repo_dict:
+            raise ValueError(
+                f"Multiple repositories with the name ({name}) have been "
+                "specified. Please ensure all referenced repositories have a "
+                "unique name."
+            )
 
-        def __call__(self, parser, namespace, values, option_string=None):
-            if not getattr(namespace, self.dest) or getattr(namespace, self.dest) == self.default:
-                self._repo_dict = {}
-            repo = values
-            prefix = self.prefix_pattern.match(repo)
-            if not prefix:
-                raise ValueError(
-                    "Be sure to specify repositories in form {name}uri when specifying more than one repository.")
-            name, uri = prefix.groups()
-            if name in self._repo_dict:
-                raise ValueError(
-                    "Multiple repositories with the name ({}) have been specified. Please ensure all referenced repositories have a unique name.".format(
-                        name))
+        self._repo_dict[name] = uri
 
-            self._repo_dict[name] = uri
+        if None in self._repo_dict and len(self._repo_dict) > 1:
+            raise ValueError(
+                "Make sure you specify names for all repositories."
+            )
 
-            if None in self._repo_dict and len(self._repo_dict) > 1:
-                raise ValueError("Make sure you specify names for all repositories.".format(name))
-
-            if None in self._repo_dict:
-                setattr(namespace, self.dest, self._repo_dict[None])
-            else:
-                setattr(namespace, self.dest, self._repo_dict)
+        if None in self._repo_dict:
+            setattr(namespace, self.dest, self._repo_dict[None])
+        else:
+            setattr(namespace, self.dest, self._repo_dict)
 
 
-    parser = argparse.ArgumentParser(add_help=False,
-                                    description='Script to simplify management of the knowledge data repo.')
+def create_args():
+    parser = ArgumentParser(add_help=False,
+                            description='Script to simplify management of the knowledge data repo.')
     parser.add_argument('--repo', action=ParseRepositories, help='The repository(ies) to use.',
                         default=os.environ.get('KNOWLEDGE_REPO', None))
     parser.add_argument('--knowledge-branch', dest='knowledge_branch',
@@ -88,23 +95,29 @@ def main():
                         help='Whether script should update the repository before performing actions.')
     parser.add_argument('--version', dest='version', action='store_true', help='Show version and exit.')
     parser.add_argument('-h', '--help', action='store_true', help='Show help and exit.')
+    return parser
 
-    args, remaining_args = parser.parse_known_args()
 
+def handle_basic_args(parser: ArgumentParser, args: Namespace,
+                      allow_exit: bool = False):
+    # Show version and exit
     if args.version:
         print('Local version: {}'.format(knowledge_repo.__version__))
+        print('Active version: {}'.format(knowledge_repo.__version__))
+        raise SystemExit
 
     if args.repo is None:
         parser.print_help()
-        raise ValueError("No repository specified. Please set the --repo flag, "
-                        "or the KNOWLEDGE_REPO environment variable.")
+        raise ValueError("No repository specified. Please set the "
+                         "--repo flag or the KNOWLEDGE_REPO environment "
+                         "variable.")
 
     # Load repository for use in subsequent commands. It may not be possible to load
     # the repository for various reasons, such as it not existing. At this point,
     # that is okay. Later on the requirement that te repository be correctly
     # initialised will be enforced.
     try:
-        repo = knowledge_repo.KnowledgeRepository.for_uri(args.repo)
+        repo = KnowledgeRepository.for_uri(args.repo)
     except (ValueError, git.exc.GitError,
             gitdb.exc.ODBError):  # TODO: Generalise error to cater for all KnowledgeRepository instances.
         repo = None
@@ -135,11 +148,13 @@ def main():
             clone_kr_to_directory('~/.knowledge_repo/git')
             cmdline_args = ['--noupdate'] + [arg.replace(' ', r'\ ') if ' ' in arg else arg for arg in sys.argv[1:]]
             with CheckedOutRevision('~/.knowledge_repo/git', required_version[1:]) as script_path:
-                sys.exit(
-                    subprocess.call(
-                        '{} {}'.format(os.path.join(script_path, 'scripts/knowledge_repo'), ' '.join(cmdline_args)
-                                    ), shell=True)
-                )
+                p = os.path.join(script_path, 'scripts/knowledge_repo')
+                rc = subprocess.call(f"{p} {' '.join(cmdline_args)}",
+                                     shell=True)
+                if rc and allow_exit:
+                    sys.exit(rc)
+                else:
+                    raise SystemExit
         else:
             from knowledge_repo.utils.dependencies import check_dependencies
 
@@ -150,6 +165,10 @@ def main():
                 )
             ])
 
+    return repo
+
+
+def create_subparser(args: Namespace, parser: ArgumentParser):
     # ---------------------------------------------------------------------------------------
     # Everything below this line pertains to actual actions to be performed on the repository
     # By now, we are guaranteed to be the script that is to perform actions on the repository,
@@ -169,11 +188,11 @@ def main():
     create.add_argument('filename', help='Where this file should be created.')
     #
     drafts = subparsers.add_parser('drafts',
-                                help='Show the posts which have local work that has not been published upstream.')
+                                   help='Show the posts which have local work that has not been published upstream.')
     drafts.set_defaults(action='drafts')
 
     status = subparsers.add_parser('status',
-                                help='Provide information on the state of the repository. Useful mainly for debugging.')
+                                   help='Provide information on the state of the repository. Useful mainly for debugging.')
     status.set_defaults(action='status')
 
     add = subparsers.add_parser('add',
@@ -181,12 +200,12 @@ def main():
     add.set_defaults(action='add')
     add.add_argument('filename', help='The filename to add.')
     add.add_argument('-p', '--path',
-                    help='The path of the destination post to be added in the knowledge repo. Required if the knowledge post does not specify "path" in its headers.')
+                     help='The path of the destination post to be added in the knowledge repo. Required if the knowledge post does not specify "path" in its headers.')
     add.add_argument('--update', action='store_true', help='Whether this should update an existing post of the same name.')
     add.add_argument('--branch',
-                    help='The branch to use for this addition, if not the default (which is the path of the knowledge post).')
+                     help='The branch to use for this addition, if not the default (which is the path of the knowledge post).')
     add.add_argument('--squash', action='store_true',
-                    help='Automatically suppress all previous commits, and replace it with this version.')
+                     help='Automatically suppress all previous commits, and replace it with this version.')
     add.add_argument('--submit', action='store_true', help='Submit newly added post')
     add.add_argument('-m', '--message', help='The commit message to be used when committing into the repo.')
     add.add_argument('--src', nargs='+', help='Specify additional source files to add to <knowledge_post>/orig_src.')
@@ -226,7 +245,7 @@ def main():
                         help='Which server engine to use when deploying; choose from: "flask", "gunicorn" (default) or "uwsgi".')
 
     db_upgrade = subparsers.add_parser('db_upgrade',
-                                    help='Upgrade the database to the latest schema. Only necessary if you have disabled automatic migrations in your deployment.')
+                                       help='Upgrade the database to the latest schema. Only necessary if you have disabled automatic migrations in your deployment.')
     db_upgrade.set_defaults(action='db_upgrade')
     db_upgrade.add_argument('-db', '--dburi', help='The SQLAlchemy database uri.')
     db_upgrade.add_argument('-c', '--config', default=None, help="The config file from which to read server configuration.")
@@ -235,23 +254,18 @@ def main():
                             help="Whether alembic should automatically populate the migration script.")
 
     db_downgrade = subparsers.add_parser('db_downgrade',
-                                        help='Downgrade the database to the schema identified by a revision number.')
+                                         help='Downgrade the database to the schema identified by a revision number.')
     db_downgrade.set_defaults(action='db_downgrade')
     db_downgrade.add_argument('revision', help="The target database revision. Use '-1' for the previous version.")
     db_downgrade.add_argument('-db', '--dburi', help='The SQLAlchemy database uri.')
     db_downgrade.add_argument('-c', '--config', default=None,
-                            help="The config file from which to read server configuration.")
+                              help="The config file from which to read server configuration.")
 
     reindex = subparsers.add_parser('reindex',
                                     help='Update the index, updating all posts even if they exist in the database already; but will not lose post views and other usage metadata.')
     reindex.set_defaults(action='reindex')
     reindex.add_argument('-db', '--dburi', help='The SQLAlchemy database uri.')
     reindex.add_argument('-c', '--config', default=None, help="The config file from which to read server configuration.")
-
-    # Show version and exit
-    if args.version:
-        print('Active version: {}'.format(knowledge_repo.__version__))
-        sys.exit(0)
 
     # Only show db_migrate option if running in development mode, and in a git repository.
     if args.dev and os.path.exists(str(script_dir.parent.parent/'.git')):
@@ -262,33 +276,53 @@ def main():
         db_migrate.add_argument('--autogenerate', action='store_true',
                                 help="Whether alembic should automatically populate the migration script.")
 
-    args = parser.parse_args()
 
-    if not hasattr(args, 'action'):
-        parser.print_help()
-        sys.exit(1)
+def parse_args(args: Sequence[str] = None, allow_exit: bool = True):
+    parser = create_args()
+    parsedargs, remaining_args = parser.parse_known_args(args)
+    try:
+        repo = handle_basic_args(parser, parsedargs, allow_exit)
+    except SystemExit:
+        if allow_exit:
+            sys.exit(0)
+    else:
+        create_subparser(parsedargs, parser)
+        parsedargs = parser.parse_args(args)
+        if not hasattr(parsedargs, 'action'):
+            parser.print_help()
+            if allow_exit:
+                sys.exit(1)
+            else:
+                return
 
+        return parsedargs, repo
+
+
+def handle_args(args: Namespace, repo: KnowledgeRepository):
     # If init, use this code to create a new repository.
     if args.action == 'init':
         assert not isinstance(args.repo, dict), "Only one repository can be initialised at a time."
-        repo = knowledge_repo.KnowledgeRepository.create_for_uri(args.repo)
+        repo = KnowledgeRepository.create_for_uri(args.repo)
         if repo is not None:
-            print("Knowledge repository successfully initialized for uri `{}`.".format(repo.uri))
+            print("Knowledge repository successfully initialized for uri "
+                  f"`{repo.uri}`.")
         else:
-            print("Something weird happened while creating repository for uri `{}`. Please report!".format(repo.uri))
-        sys.exit(0)
+            print("Something weird happened while creating repository for uri "
+                  f"`{repo.uri}`. Please report!")
+        raise SystemExit
 
-    # All subsequent actions perform an action on the repository, and so we verify
+    # All subsequent actions perform an action on the repository, and so we
     # enforce that `repo` is not None.
     if repo is None:
         raise RuntimeError(
-            "Could not initialise knowledge repository for uri `{}`. Please check the uri, and try again.".format(
-                args.repo))
+            f"Could not initialise knowledge repository for uri `{args.repo}`."
+            " Please check the uri, and try again."
+        )
 
     # Create a new knowledge post from a template
     if args.action == 'create':
         src = os.path.join(os.path.dirname(knowledge_repo.__file__), 'templates',
-                        'knowledge_template.{}'.format(args.format))
+                           'knowledge_template.{}'.format(args.format))
         if args.template:
             src = args.template
         if not os.path.exists(src):
@@ -299,7 +333,7 @@ def main():
         shutil.copy(src, args.filename)
         print("Created a {format} knowledge post template at '{filename}'.".format(format=args.format,
                                                                                 filename=args.filename))
-        sys.exit(0)
+        raise SystemExit
 
     # # Check which branches have local work
     if args.action == 'drafts':
@@ -307,7 +341,7 @@ def main():
             repo.dir(status=[repo.PostStatus.DRAFT, repo.PostStatus.SUBMITTED, repo.PostStatus.UNPUBLISHED]), detailed=True)
         print(tabulate([[path, status.name, details] for path, (status, details) in statuses.items()],
                     ['Post', 'Status', 'Details'], 'fancy_grid'))
-        sys.exit(0)
+        raise SystemExit
 
     if args.action == 'status':
         status = repo.status_message
@@ -316,21 +350,21 @@ def main():
                 ['Repository: {name}\n{message}'.format(name=name, message=message) for name, message in status.items()]))
         else:
             print(repo.status_message)
-        sys.exit(0)
+        raise SystemExit
 
     # Add a document to the data repository
     if args.action == 'add':
         kp = knowledge_repo.KnowledgePost.from_file(args.filename, src_paths=args.src)
         repo.add(kp, path=args.path, update=args.update, branch=args.branch, message=args.message, squash=args.squash)
         if not args.submit:
-            sys.exit(0)
+            raise SystemExit
 
     if args.action in ['submit', 'push'] or (args.action == 'add' and args.submit):
         if args.action == 'push':
             print(
                 "WARNING: The `push` action is deprecated, and you are encouraged to use `knowledge_repo submit <path>` instead.")
         repo.submit(path=args.path)
-        sys.exit(0)
+        raise SystemExit
 
     # Everything below this point has to do with running and/or managing the web app
     from knowledge_repo.app.deploy import KnowledgeDeployer, get_app_builder
@@ -386,3 +420,19 @@ def main():
     elif args.action == 'reindex':
         app = repo.get_app(db_uri=args.dburi, debug=args.debug, config=args.config)
         app.db_update_index(check_timeouts=False, force=True, reindex=True)
+
+
+def process(args: Sequence[str] = None, allow_exit: bool = False):
+    x = parse_args(args, allow_exit)
+    if x:
+        try:
+            return handle_args(*x)
+        except SystemExit:
+            if allow_exit:
+                sys.exit(0)
+
+
+def main():
+    # Register handler for SIGTERM, so we can run cleanup code if terminated
+    signal.signal(signal.SIGTERM, lambda signum, frame: sys.exit(0))
+    process(allow_exit=True)
