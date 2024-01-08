@@ -7,8 +7,18 @@ import logging
 import os
 import shutil
 import time
+from os.path import sep as pathsep, abspath, join as ospjoin
+from urllib.parse import urlparse
+from urllib.request import url2pathname
 
 logger = logging.getLogger(__name__)
+
+
+def uri_to_path(uri: str):
+    # https://stackoverflow.com/a/61922504/13230486
+    uriparts = urlparse(uri)
+    return abspath(ospjoin(f'{pathsep}{pathsep}{uriparts.netloc}{pathsep}',
+                   url2pathname(uriparts.path)))
 
 
 class FolderKnowledgeRepository(KnowledgeRepository):
@@ -24,7 +34,7 @@ class FolderKnowledgeRepository(KnowledgeRepository):
     @classmethod
     def create(cls, uri, embed_tooling=False):
         if uri.startswith("file://"):
-            uri = uri[len("file://") :]
+            uri = uri_to_path(uri)
         path = os.path.abspath(uri)
         if not os.path.exists(path):
             os.makedirs(path)
@@ -48,7 +58,7 @@ class FolderKnowledgeRepository(KnowledgeRepository):
         check_for_git = True
         if uri.startswith("file://"):
             check_for_git = False
-            uri = uri[len("file://") :]
+            uri = uri_to_path(uri)
         if check_for_git and os.path.exists(os.path.join(uri, ".git")):
             from .gitrepository import GitKnowledgeRepository
 

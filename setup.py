@@ -75,7 +75,7 @@ setup(
     packages=find_packages(),
     zip_safe=False,
     include_package_data=True,  # See included paths in MANIFEST.in
-    scripts=["scripts/knowledge_repo", "scripts/kp"],
+    # scripts=["scripts/knowledge_repo.py", "scripts/kp.py"],
     install_requires=version_info["__dependencies__"],
     extras_require=version_info["__optional_dependencies__"],
     classifiers=[
@@ -90,5 +90,11 @@ setup(
         "Programming Language :: Python :: 3.8",
         "Programming Language :: Python :: 3.9",
     ],
-    cmdclass={"install_scripts": install_scripts_windows_wrapper},
+    # cmdclass={"install_scripts": install_scripts_windows_wrapper},
+    entry_points={
+        'console_scripts': [
+            'kr=knowledge_repo.scripts.kr:main',
+            'kp=knowledge_repo.scripts.kp:main',
+        ]
+    }
 )

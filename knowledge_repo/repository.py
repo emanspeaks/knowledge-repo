@@ -11,6 +11,7 @@ from enum import Enum
 from urllib.parse import urlparse
 import os
 import posixpath
+from pathlib import Path
 
 
 class KnowledgeRepository(object, metaclass=SubclassRegisteringABCMeta):
@@ -31,7 +32,7 @@ class KnowledgeRepository(object, metaclass=SubclassRegisteringABCMeta):
     def for_uri(cls, uri, *args, **kwargs):
         if isinstance(uri, dict):
             return cls.for_uris(uri)
-        scheme = urlparse(uri).scheme
+        scheme = "" if Path(uri).exists() else urlparse(uri).scheme
         return cls._get_subclass_for(scheme).from_uri(uri, *args, **kwargs)
 
     @classmethod
@@ -55,7 +56,7 @@ class KnowledgeRepository(object, metaclass=SubclassRegisteringABCMeta):
     def create_for_uri(cls, uri, **kwargs):
         if isinstance(uri, dict):
             return cls.for_uris(uri)
-        scheme = urlparse(uri).scheme
+        scheme = "" if Path(uri).exists() else urlparse(uri).scheme
         return cls._get_subclass_for(scheme).create(uri, **kwargs)
 
     @classmethod

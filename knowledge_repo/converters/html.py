@@ -7,7 +7,8 @@ from markdown.blockprocessors import BlockProcessor
 from markdown.extensions import codehilite, toc
 from markdown.inlinepatterns import Pattern
 from markdown.preprocessors import Preprocessor
-from markdown.util import AtomicString, etree
+from markdown.util import AtomicString
+from xml import etree
 import base64
 import markdown
 import mimetypes
