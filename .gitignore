@@ -38,6 +38,7 @@ pip-delete-this-directory.txt
 htmlcov/
 manual_test/
 tests/test_repo/
+tests/knowledge.db
 .tox/
 .coverage
 .coverage.*

@@ -5,14 +5,13 @@ from sqlalchemy import (
     DateTime,
     Integer,
     LargeBinary,
-    MetaData,
     String,
     Table,
 )
 from sqlalchemy.orm import (
-    mapper,
     scoped_session,
     sessionmaker,
+    registry,
 )
 from sqlalchemy.sql import func
 import logging
@@ -43,7 +42,9 @@ class DbKnowledgeRepository(KnowledgeRepository):
         engine_uri = ':'.join(uri_splt[:-1])
         table_name = uri_splt[-1]
 
-        metadata = MetaData()
+        # metadata = MetaData()
+        mapper_registry = registry()
+        metadata = mapper_registry.metadata
         postref_table = Table(table_name, metadata,
                               Column('id', Integer, primary_key=True),
                               Column('created_at', DateTime,
@@ -64,7 +65,8 @@ class DbKnowledgeRepository(KnowledgeRepository):
 
         class PostRef(object):
             pass
-        mapper(PostRef, postref_table)
+
+        mapper_registry.map_imperatively(PostRef, postref_table)
         self.PostRef = PostRef
 
     # ------------- Repository actions / state ------------------------------------

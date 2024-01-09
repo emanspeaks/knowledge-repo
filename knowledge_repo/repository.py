@@ -1,3 +1,4 @@
+from typing import TYPE_CHECKING
 from . import config_defaults
 from .config import KnowledgeRepositoryConfig
 from .constants import KP_EXTENSION
@@ -12,6 +13,9 @@ from urllib.parse import urlparse
 import os
 import posixpath
 from pathlib import Path
+
+if TYPE_CHECKING:
+    from . app import KnowledgeFlask
 
 
 class KnowledgeRepository(object, metaclass=SubclassRegisteringABCMeta):
@@ -423,7 +427,6 @@ class KnowledgeRepository(object, metaclass=SubclassRegisteringABCMeta):
         return self.config.web_uri()
 
     # ----------- Interface with web app ----------------------------------
-    def get_app(self, *args, **kwargs):
-        from . import app
-        return self.config.prepare_app(
-            app.KnowledgeFlask(self, *args, **kwargs))
+    def get_app(self, *args, **kwargs) -> 'KnowledgeFlask':
+        from . app import KnowledgeFlask
+        return self.config.prepare_app(KnowledgeFlask(self, *args, **kwargs))

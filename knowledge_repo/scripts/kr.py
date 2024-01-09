@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 
-from typing import Sequence
+from typing import Sequence, Union, List
 from argparse import Namespace, Action, ArgumentParser
 import os
 import re
@@ -22,12 +22,15 @@ from tabulate import tabulate
 script_dir = Path(__file__).parent
 if script_dir.parent.name == 'knowledge_repo':
     sys.path.insert(0, str(script_dir.parent.parent))
-import knowledge_repo  # nopep8 # noqa: E402
-from knowledge_repo import KnowledgeRepository  # noqa: E402
+
+from knowledge_repo import KnowledgeRepository, __version__, KnowledgePost  # noqa: E402, E501
 from knowledge_repo.repositories.gitrepository import GitKnowledgeRepository  # nopep8 # noqa: E402, E501
+from knowledge_repo.app import KnowledgeFlask  # noqa: E402
+from knowledge_repo.app.deploy import KnowledgeDeployer, get_app_builder  # noqa: E402, E501
+
 
 # If there's a contrib folder, add this as well and import it
-contrib_dir = str(script_dir.parent.parent/'contrib')
+contrib_dir = str(script_dir.parent.parent / 'contrib')
 if os.path.exists(os.path.join(contrib_dir, '__init__.py')):
     sys.path.insert(0, os.path.join(contrib_dir, '..'))
 
@@ -98,11 +101,11 @@ def create_args():
 
 
 def handle_basic_args(parser: ArgumentParser, args: Namespace,
-                      allow_exit: bool = False):
+                      allow_exit: bool = False) -> KnowledgeRepository:
     # Show version and exit
     if args.version:
-        print('Local version: {}'.format(knowledge_repo.__version__))
-        print('Active version: {}'.format(knowledge_repo.__version__))
+        print(f'Local version: {__version__}')
+        print(f'Active version: {__version__}')
         raise SystemExit
 
     if args.repo is None:
@@ -266,7 +269,7 @@ def create_subparser(args: Namespace, parser: ArgumentParser):
     reindex.add_argument('-c', '--config', default=None, help="The config file from which to read server configuration.")
 
     # Only show db_migrate option if running in development mode, and in a git repository.
-    if args.dev and os.path.exists(str(script_dir.parent.parent/'.git')):
+    if args.dev and os.path.exists(str(script_dir.parent.parent / '.git')):
         db_migrate = subparsers.add_parser('db_migrate', help='Create a new alembic revision.')
         db_migrate.set_defaults(action='db_migrate')
         db_migrate.add_argument('message', help="The message to use for the database revision.")
@@ -296,128 +299,179 @@ def parse_args(args: Sequence[str] = None, allow_exit: bool = True):
         return parsedargs, repo
 
 
+def init(uri: str):
+    assert not isinstance(uri, dict), "Only one repository can be initialised at a time."
+    repo = KnowledgeRepository.create_for_uri(uri)
+    if repo is not None:
+        print("Knowledge repository successfully initialized for uri "
+              f"`{repo.uri}`.")
+    else:
+        print("Something weird happened while creating repository for uri "
+              f"`{uri}`. Please report!")
+
+
+def create(format: str, filename: str, template: str = None):
+    pkg = Path(__file__).parent.parent
+    src = pkg/'templates'/f'knowledge_template.{format}'
+    if template:
+        src = template
+    if not os.path.exists(src):
+        raise ValueError(f"Template not found at {src}. Please choose a different template and try again.")
+    if os.path.exists(filename):
+        raise ValueError(f"File already exists at '{filename}'. Please choose a different filename and try again.")
+    shutil.copy(src, filename)
+    print(f"Created a {format} knowledge post template at '{filename}'.")
+
+
+def drafts(repo: KnowledgeRepository):
+    statuses = repo.post_statuses(
+        repo.dir(status=[repo.PostStatus.DRAFT,
+                         repo.PostStatus.SUBMITTED,
+                         repo.PostStatus.UNPUBLISHED]),
+        detailed=True,
+    )
+    print(tabulate(
+        [[path, status.name, details]
+         for path, (status, details) in statuses.items()],
+        ['Post', 'Status', 'Details'],
+        'fancy_grid'
+    ))
+
+
+def status(repo: KnowledgeRepository, uri: Union[str, dict]):
+    status = repo.status_message
+    if isinstance(uri, dict):
+        print("\n-----\n".join([f'Repository: {name}\n{message}'
+                                for name, message in status.items()]))
+    else:
+        print(status)
+
+
+def add(repo: KnowledgeRepository, filename: str, path: str,
+        update: bool = False, branch: str = None, message: str = None, squash: bool = False, src: List[str] = None):
+    kp = KnowledgePost.from_file(filename, src_paths=src)
+    repo.add(kp, path=path, update=update, branch=branch, message=message,
+             squash=squash)
+
+
+def serve(action: str, repo: KnowledgeRepository, uri: str, debug: bool,
+          dburi: str, config: str, port: int, preview_path: str = None,
+          engine: str = 'flask', workers: int = None, timeout: int = None):
+    app_builder = get_app_builder(
+        uri,
+        debug=debug,
+        db_uri=dburi,
+        config=config,
+        INDEXING_ENABLED=action != 'preview'
+    )
+
+    if action == 'preview':
+        kp_path = repo._kp_path(preview_path)
+        repo.set_active_draft(kp_path)  # TODO: Deprecate
+        url = f'http://127.0.0.1:{port}/post/{kp_path}'
+        threading.Timer(1.25, lambda: webbrowser.open(url)).start()
+
+    server_kwargs = dict()
+    if workers is not None:
+        server_kwargs['workers'] = workers
+
+    if timeout is not None:
+        server_kwargs['timeout'] = timeout
+
+    run_kwargs = dict()
+    if engine == 'flask':
+        run_kwargs['use_reloader'] = debug and action != 'preview'
+
+    return KnowledgeDeployer.using(engine)(
+        app_builder,
+        host='0.0.0.0',
+        port=port,
+        **server_kwargs
+    ).run(**run_kwargs)
+
+
+def db_migrate(repo: KnowledgeRepository, debug: bool, dburi: str,
+               message: str, autogenerate: bool):
+    app = repo.get_app(debug=debug, db_uri=dburi)
+    app.db_migrate(message, autogenerate=autogenerate)
+
+
+def reindex(app: KnowledgeFlask):
+    app.db_update_index(check_timeouts=False, force=True, reindex=True)
+
+
+def repo_app(repo: KnowledgeRepository, dburi: str = None, debug: bool = False,
+             config: str = None):
+    return repo.get_app(db_uri=dburi, debug=debug, config=config)
+
+
 def handle_args(args: Namespace, repo: KnowledgeRepository):
+    uri = args.repo
+    action = args.action
+
     # If init, use this code to create a new repository.
-    if args.action == 'init':
-        assert not isinstance(args.repo, dict), "Only one repository can be initialised at a time."
-        repo = KnowledgeRepository.create_for_uri(args.repo)
-        if repo is not None:
-            print("Knowledge repository successfully initialized for uri "
-                  f"`{repo.uri}`.")
-        else:
-            print("Something weird happened while creating repository for uri "
-                  f"`{repo.uri}`. Please report!")
+    if action == 'init':
+        init(uri)
         raise SystemExit
 
     # All subsequent actions perform an action on the repository, and so we
     # enforce that `repo` is not None.
     if repo is None:
         raise RuntimeError(
-            f"Could not initialise knowledge repository for uri `{args.repo}`."
+            f"Could not initialise knowledge repository for uri `{uri}`."
             " Please check the uri, and try again."
         )
 
     # Create a new knowledge post from a template
-    if args.action == 'create':
-        src = os.path.join(os.path.dirname(knowledge_repo.__file__), 'templates',
-                           'knowledge_template.{}'.format(args.format))
-        if args.template:
-            src = args.template
-        if not os.path.exists(src):
-            raise ValueError("Template not found at {}. Please choose a different template and try again.".format(src))
-        if os.path.exists(args.filename):
-            raise ValueError(
-                "File already exists at '{}'. Please choose a different filename and try again.".format(args.filename))
-        shutil.copy(src, args.filename)
-        print(f"Created a {args.format} knowledge post template at "
-              f"'{args.filename}'.")
+    if action == 'create':
+        create(args.format, args.filename, args.template)
         raise SystemExit
 
     # # Check which branches have local work
-    if args.action == 'drafts':
-        statuses = repo.post_statuses(
-            repo.dir(status=[repo.PostStatus.DRAFT, repo.PostStatus.SUBMITTED, repo.PostStatus.UNPUBLISHED]), detailed=True)
-        print(tabulate([[path, status.name, details] for path, (status, details) in statuses.items()],
-                       ['Post', 'Status', 'Details'], 'fancy_grid'))
+    if action == 'drafts':
+        drafts(repo)
         raise SystemExit
 
-    if args.action == 'status':
-        status = repo.status_message
-        if isinstance(args.repo, dict):
-            print("\n-----\n".join(
-                ['Repository: {name}\n{message}'.format(name=name, message=message) for name, message in status.items()]))
-        else:
-            print(repo.status_message)
+    if action == 'status':
+        status(repo, uri)
         raise SystemExit
 
     # Add a document to the data repository
-    if args.action == 'add':
-        kp = knowledge_repo.KnowledgePost.from_file(args.filename, src_paths=args.src)
-        repo.add(kp, path=args.path, update=args.update, branch=args.branch, message=args.message, squash=args.squash)
+    if action == 'add':
+        add(repo, args.filename, path=args.path, update=args.update,
+            branch=args.branch, message=args.message, squash=args.squash,
+            src=args.src)
         if not args.submit:
             raise SystemExit
 
-    if args.action in ['submit', 'push'] or (args.action == 'add' and args.submit):
+    if action in ('submit', 'push') or (action == 'add' and args.submit):
         if args.action == 'push':
-            print(
-                "WARNING: The `push` action is deprecated, and you are encouraged to use `knowledge_repo submit <path>` instead.")
+            print("WARNING: The `push` action is deprecated, and you are "
+                  "encouraged to use `knowledge_repo submit <path>` instead.")
         repo.submit(path=args.path)
         raise SystemExit
 
     # Everything below this point has to do with running and/or managing the web app
-    from knowledge_repo.app.deploy import KnowledgeDeployer, get_app_builder
+    if action in ['preview', 'runserver', 'deploy']:
+        engine = args.engine if action == 'deploy' else 'flask'
+        serve(action, repo, uri, args.debug, args.dburi, args.config,
+              args.port, args.path, engine, args.workers, args.timeout)
+        raise SystemExit
 
-    if args.action in ['preview', 'runserver']:
-        app_builder = get_app_builder(args.repo,
-                                      debug=args.debug,
-                                      db_uri=args.dburi,
-                                      config=args.config,
-                                      INDEXING_ENABLED=(args.action == 'runserver'))
+    if action == 'db_migrate':
+        db_migrate(repo, debug=args.debug, db_uri=args.dburi,
+                   message=args.message, autogenerate=args.autogenerate)
+        raise SystemExit
 
-        if args.action == 'preview':
-            kp_path = repo._kp_path(args.path)
-            repo.set_active_draft(kp_path)  # TODO: Deprecate
-            url = 'http://127.0.0.1:{}/post/{}'.format(args.port, kp_path)
-            threading.Timer(1.25, lambda: webbrowser.open(url)).start()
-
-        KnowledgeDeployer.using('flask')(
-            app_builder,
-            host='0.0.0.0',
-            port=args.port
-        ).run(
-            use_reloader=args.debug and args.action == 'runserver'
-        )
-
-    elif args.action == 'deploy':
-        app_builder = get_app_builder(args.repo,
-                                      debug=args.debug,
-                                      db_uri=args.dburi,
-                                      config=args.config)
-
-        server = KnowledgeDeployer.using(args.engine)(
-            app_builder,
-            host='0.0.0.0',
-            port=args.port,
-            workers=args.workers,
-            timeout=args.timeout
-        )
-        server.run()
-
-    elif args.action == 'db_upgrade':
-        app = repo.get_app(db_uri=args.dburi, debug=args.debug, config=args.config)
+    app = repo_app(repo, args.dburi, args.debug, args.config)
+    if action == 'db_upgrade':
         app.db_upgrade()
 
-    elif args.action == 'db_downgrade':
-        app = repo.get_app(db_uri=args.dburi, debug=args.debug, config=args.config)
+    elif action == 'db_downgrade':
         app.db_downgrade(revision=args.revision)
 
-    elif args.action == 'db_migrate':
-        app = repo.get_app(debug=args.debug, db_uri=args.dburi)
-        app.db_migrate(args.message, autogenerate=args.autogenerate)
-
-    elif args.action == 'reindex':
-        app = repo.get_app(db_uri=args.dburi, debug=args.debug, config=args.config)
-        app.db_update_index(check_timeouts=False, force=True, reindex=True)
+    elif action == 'reindex':
+        reindex(app)
 
 
 def process(args: Sequence[str] = None, allow_exit: bool = False):
@@ -434,3 +488,7 @@ def main():
     # Register handler for SIGTERM, so we can run cleanup code if terminated
     signal.signal(signal.SIGTERM, lambda signum, frame: sys.exit(0))
     process(allow_exit=True)
+
+
+if __name__ == '__main__':
+    main()

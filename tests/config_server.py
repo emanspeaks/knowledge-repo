@@ -1,4 +1,4 @@
-import posixpath
+from pathlib import Path
 
 # This file is only needed for setting up a dedicated server configuration
 # with support for extracting username information and emailing users.
@@ -8,7 +8,7 @@ SERVER_NAME = 'localhost.localdomain'
 # ---------------------------------------------------
 # Database configuration
 # ---------------------------------------------------
-SQLALCHEMY_DATABASE_URI = 'sqlite:///' + posixpath.join(posixpath.dirname(__file__), 'knowledge.db')
+SQLALCHEMY_DATABASE_URI = f'sqlite:///{Path(__file__).parent}/knowledge.db'
 
 # Should the database tables be automatically created
 DB_AUTO_CREATE = True
@@ -51,6 +51,17 @@ def prepare_repo(repo):
 # a person's username - this is used for pageview tracking,
 # likes, favorites, etc. As a fallback, DEFAULT_USER is used.
 AUTH_USER_IDENTIFIER_REQUEST_HEADER = 'test_user_request_header'
+AUTH_USE_REQUEST_HEADERS = True
+
+
+def AUTH_MAP_REQUEST_HEADERS(headers):
+    return {
+        'identifier': headers.get(AUTH_USER_IDENTIFIER_REQUEST_HEADER),
+        # 'avatar_uri': None,
+        # 'name': None,
+        # 'email': None
+    }
+
 
 # ---------------------------------------------------
 # Flask Mail Configuration

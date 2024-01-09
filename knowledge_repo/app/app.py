@@ -33,7 +33,7 @@ from flask_principal import (
     PermissionDenied,
     Principal,
 )
-from werkzeug.urls import url_encode
+from urllib.parse import urlencode
 import logging
 import os
 import importlib
@@ -126,8 +126,9 @@ class KnowledgeFlask(Flask):
 
         # Ensure that indexes are set up if required by the time first page is
         # served.
-        @self.before_first_request
-        def start_indexing():
+        # @self.before_first_request
+        # def start_indexing():
+        with self.app_context():
             if self.config['INDEXING_ENABLED']:
                 self.start_indexing()
 
@@ -232,8 +233,9 @@ class KnowledgeFlask(Flask):
         def show_404(self):
             return render_template("404.html")
 
-        @self.before_first_request
-        def ensure_excluded_tags_exist():
+        # @self.before_first_request
+        # def ensure_excluded_tags_exist():
+        with self.app_context():
             # For every tag in the excluded tags, create the tag object
             # if it doesn't exist
             excluded_tags = current_app.config['EXCLUDED_TAGS']
@@ -277,7 +279,7 @@ class KnowledgeFlask(Flask):
             for key, value in new_values.items():
                 args[key] = value
 
-            args_encoded = url_encode(args)
+            args_encoded = urlencode(args)
             return f'{request.path}?{args_encoded}'
 
         @self.template_global()

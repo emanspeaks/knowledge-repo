@@ -7,7 +7,7 @@ import re
 def dict_to_yaml(x):
     yaml = []
     for key, value in x.items():
-        if type(value) == list:
+        if isinstance(value, list):
             yaml += f'{key}:\n'
             for v in value:
                 yaml += f'- {v}\n'

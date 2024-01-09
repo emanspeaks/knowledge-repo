@@ -20,16 +20,37 @@
 			"source.fixAll.eslint": "explicit"
 		},
 		"typescript.tsdk": "knowledge_repo_v2/frontend/node_modules/typescript/lib",
-		"typescript.enablePromptUseWorkspaceTsdk": true
+		"typescript.enablePromptUseWorkspaceTsdk": true,
+		"files.associations": {
+			"*.json": "jsonc",
+			"*.html": "jinja-html"
+		},
+		"python.testing.unittestArgs": [
+			"-v",
+			"-s",
+			"./tests",
+			"-p",
+			"test_*.py"
+		],
+		"python.testing.pytestEnabled": false,
+		"python.testing.unittestEnabled": true
 	},
 	"launch": {
 		"version": "0.2.0",
 		"configurations": [
 			{
+				"name": "Python: Current File",
+				"type": "python",
+				"request": "launch",
+				"program": "${file}",
+				"console": "integratedTerminal",
+				"justMyCode": false
+			},
+			{
 				"name": "Run Server Locally",
 				"type": "python",
 				"request": "launch",
-				"program": "scripts/knowledge_repo",
+				"program": "knowledge_repo/scripts/kr.py",
 				"console": "integratedTerminal",
 				"args": [
 					"runserver",
@@ -41,7 +62,7 @@
 				"name": "Run Server Locally with a Git repo",
 				"type": "python",
 				"request": "launch",
-				"program": "scripts/knowledge_repo",
+				"program": "knowledge_repo/scripts/kr.py",
 				"console": "integratedTerminal",
 				"args": [
 					"--repo",
@@ -55,7 +76,7 @@
 				"name": "Run Server Locally with config",
 				"type": "python",
 				"request": "launch",
-				"program": "scripts/knowledge_repo",
+				"program": "knowledge_repo/scripts/kr.py",
 				"console": "integratedTerminal",
 				"args": [
 					"runserver",
@@ -69,7 +90,7 @@
 				"name": "Run Database KP Server Locally with config",
 				"type": "python",
 				"request": "launch",
-				"program": "scripts/knowledge_repo",
+				"program": "knowledge_repo/scripts/kr.py",
 				"console": "integratedTerminal",
 				"args": [
 					"--repo",
@@ -85,7 +106,7 @@
 				"name": "Run Cloud Storage KP Server Locally with config",
 				"type": "python",
 				"request": "launch",
-				"program": "scripts/knowledge_repo",
+				"program": "knowledge_repo/scripts/kr.py",
 				"console": "integratedTerminal",
 				"args": [
 					"runserver",

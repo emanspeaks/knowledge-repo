@@ -163,3 +163,7 @@ def main():
         repo.add(kp, path=args.path, update=args.update, message=args.message)
         repo.submit(args.path)
         sys.exit(0)
+
+
+if __name__ == '__main__':
+    main()

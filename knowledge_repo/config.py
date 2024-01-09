@@ -61,7 +61,7 @@ class KnowledgeRepositoryConfig(dict):
 
     def update_defaults(self, *values, **kwargs):
         for value in values:
-            if type(value) == dict:
+            if isinstance(value, dict):
                 self.DEFAULT_CONFIGURATION.update(value)
             elif isinstance(value, types.ModuleType):
                 self.__defaults_from_module(value)
@@ -96,8 +96,8 @@ class KnowledgeRepositoryConfig(dict):
             spec = importlib.util.spec_from_file_location(
                 module_name, filename)
             config = importlib.util.module_from_spec(spec)
-            sys.modules[module_name] = module
-            spec.loader.exec_module(module)
+            sys.modules[module_name] = config
+            spec.loader.exec_module(config)
             self.__set_from_module(d, config, force)
         elif filename.endswith(YML_EXTENSION):
             config = read_yaml(filename)

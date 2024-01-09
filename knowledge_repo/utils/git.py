@@ -27,7 +27,7 @@ def bash_path():
         return 'bash.exe'
     gitpath = Path(wheregit.decode(defenc).splitlines()[0])
     gitroot = gitpath.parent.parent
-    gitbash = gitroot/'bin'/'bash.exe'
+    gitbash = gitroot / 'bin' / 'bash.exe'
     return str(gitbash) if gitbash.exists else 'bash.exe'
 
 

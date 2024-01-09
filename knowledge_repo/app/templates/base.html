@@ -19,14 +19,16 @@
   <script src="{{ url_for('static', filename='modules/marked.js/marked.js')}}"></script>
   <!-- Update ID from ENV -->
   <!-- Google tag (gtag.js) -->
+  <!--
   <script async src="https://www.googletagmanager.com/gtag/js?id=G-PGDFSCG1GD"></script>
   <script>
     window.dataLayer = window.dataLayer || [];
-    function gtag(){dataLayer.push(arguments);}
+    function gtag() { dataLayer.push(arguments); }
     gtag('js', new Date());
 
     gtag('config', 'G-PGDFSCG1GD');
   </script>
+  -->
   <!-- require js is used for plotly, but has a bunch of collisions with other js packages
              make sure to have it be last js package imported -->
   <script src="{{ url_for('static', filename='modules/require.js/require.min.js')}}"></script>
@@ -62,8 +64,13 @@
   {% block extra_headers %}
   {% endblock %}
   <style>
-    {% block style %}
-    {% endblock %}
+    {
+      % block style %
+    }
+
+      {
+      % endblock %
+    }
   </style>
 </head>
 
@@ -199,7 +206,7 @@
 
   <div class="footer">
     Served with <span class="glyphicon glyphicon-heart"></span> by <a
-      href="https://github.com/airbnb/knowledge-repo">Knowledge Repo</a> <a {% if version_revision
+      href="https://github.com/emanspeaks/knowledge-repo">Knowledge Repo</a> <a {% if version_revision
       %}title='{{version_revision}}' {% endif %}
       href="https://github.com/airbnb/knowledge-repo/releases/tag/v{{ version }}">{{ version }}</a>
     <br />

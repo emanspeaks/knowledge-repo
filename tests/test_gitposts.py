@@ -5,9 +5,13 @@ from bs4 import BeautifulSoup
 from knowledge_repo import KnowledgeRepository
 from knowledge_repo.app.models import Post
 from knowledge_repo.app.proxies import db_session
+from prep_tests import prep_tests
 
 
 class PostTest(unittest.TestCase):
+    @classmethod
+    def setUpClass(self):
+        prep_tests(quiet=True)
 
     def setUp(self):
         self.repo = KnowledgeRepository.for_uri(
@@ -74,8 +78,9 @@ class PostTest(unittest.TestCase):
         for (i, child) in enumerate(children):
             try:
                 metadata_elem = child.findAll("span")
+                metadata_elem
                 assert children[i + 1].contents
-            except:
+            except Exception:
                 pass
 
 

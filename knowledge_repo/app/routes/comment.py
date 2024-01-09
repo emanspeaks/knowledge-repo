@@ -10,7 +10,8 @@ from ..models import Comment, PageView, Post
 from ..proxies import current_user, db_session
 from ..utils.emails import send_comment_email
 from ..utils.shared import get_blueprint
-from flask import escape, request
+from flask import request
+from markupsafe import escape
 import logging
 
 logging.basicConfig(level=logging.INFO)

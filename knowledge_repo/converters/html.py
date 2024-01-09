@@ -2,16 +2,17 @@ from __future__ import absolute_import, unicode_literals
 from ..constants import PROXY, UTF8
 from ..converter import KnowledgePostConverter
 from ..mapping import SubstitutionMapper
-from markdown import Extension
+from markdown import Extension, Markdown
 from markdown.blockprocessors import BlockProcessor
 from markdown.extensions import codehilite, toc
 from markdown.inlinepatterns import Pattern
 from markdown.preprocessors import Preprocessor
 from markdown.util import AtomicString
-from xml import etree
+from xml.etree import ElementTree
 import base64
 import markdown
 import mimetypes
+from re import Match
 
 MARKDOWN_EXTENSIONS = ['extra',
                        'abbr',
@@ -56,7 +57,7 @@ class InlineSpanStyles(Extension):
             ]
 
             # Generate HTML element for new span
-            el = etree.Element('span')
+            el = ElementTree.Element('span')
             el.text = text
             if id:
                 el.attrib['id'] = id
@@ -64,9 +65,9 @@ class InlineSpanStyles(Extension):
                 el.attrib['class'] = " ".join(class_names)
             return el
 
-    def extendMarkdown(self, md, md_globals):
+    def extendMarkdown(self, md: Markdown):
         span_matcher = self.SpanMatchHandler(self.SPAN_PATTERN)
-        md.inlinePatterns['inline_span'] = span_matcher
+        md.inlinePatterns.register(span_matcher, 'inline_span', 91)
 
 
 class IndentsAsCellOutputPreprocessor(Preprocessor):
@@ -79,7 +80,7 @@ class IndentsAsCellOutputPreprocessor(Preprocessor):
         in_block = False
         block_startable = True
         for i, line in enumerate(lines):
-            if not line.startswith(' ' * self.markdown.tab_length):
+            if not line.startswith(' ' * self.md.tab_length):
                 if in_block:
                     if line != "":
                         lines.insert(i, "")
@@ -120,7 +121,7 @@ class IndentsAsCellOutputProcessor(BlockProcessor):
             output = sibling
         else:
             # This is a new codeblock. Create the elements and insert text.
-            output = markdown.util.etree.SubElement(
+            output = ElementTree.SubElement(
                 parent, 'div', {'class': 'code-output'})
 
         # If not HTML, add the `pre` class
@@ -142,12 +143,11 @@ class IndentsAsCellOutputProcessor(BlockProcessor):
 
 class IndentsAsCellOutput(Extension):
 
-    def extendMarkdown(self, md, md_globals=None):
-        md.preprocessors.add("code_isolation",
-                             IndentsAsCellOutputPreprocessor(md),
-                             "<html_block")
-        md.parser.blockprocessors['code'] = IndentsAsCellOutputProcessor(
-            md.parser)
+    def extendMarkdown(self, md: Markdown):
+        md.preprocessors.register(IndentsAsCellOutputPreprocessor(md),
+                                  "code_isolation",
+                                  19)
+        md.parser.blockprocessors.register(IndentsAsCellOutputProcessor(md.parser), 'code', 80)
 
 
 class KnowledgeMetaPreprocessor(Preprocessor):
@@ -167,31 +167,31 @@ class KnowledgeMetaPreprocessor(Preprocessor):
 class KnowledgeMetaExtension(Extension):
     """ Meta-Data extension for Python-Markdown. """
 
-    def extendMarkdown(self, md, md_globals=None):
+    def extendMarkdown(self, md: Markdown):
         """ Add MetaPreprocessor to Markdown instance. """
-        md.preprocessors.add("knowledge_meta",
-                             KnowledgeMetaPreprocessor(md),
-                             ">normalize_whitespace")
+        md.preprocessors.register(KnowledgeMetaPreprocessor(md),
+                                  "knowledge_meta",
+                                  31)
 
 
 class MathJaxPattern(markdown.inlinepatterns.Pattern):
 
     def __init__(self):
-        markdown.inlinepatterns.Pattern.__init__(
+        Pattern.__init__(
             self, r'(?<!\\)(\$\$?)(.+?)\2')
 
-    def handleMatch(self, m):
-        node = markdown.util.etree.Element('mathjax')
-        node.text = markdown.util.AtomicString(
+    def handleMatch(self, m: Match):
+        node = ElementTree.Element('mathjax')
+        node.text = AtomicString(
             m.group(2) + m.group(3) + m.group(2))
         return node
 
 
 class MathJaxExtension(markdown.Extension):
-    def extendMarkdown(self, md, md_globals=None):
+    def extendMarkdown(self, md: Markdown):
         # Needs to come before escape matching because \ is
         # pretty important in LaTeX
-        md.inlinePatterns.add('mathjax', MathJaxPattern(), '<escape')
+        md.inlinePatterns.register(MathJaxPattern(), 'mathjax', 179)
 
 
 class HTMLConverter(KnowledgePostConverter):
@@ -254,7 +254,7 @@ class HTMLConverter(KnowledgePostConverter):
             'a': '<a.*?href=[\'"](?P<url>.*?)[\'"].*?>'
         }
 
-        def urlmapper_proxy(name, match):
+        def urlmapper_proxy(name, match: Match):
             for urlmapper in urlmappers:
                 new_url = urlmapper(name, match.group('url'))
                 if new_url is not None:

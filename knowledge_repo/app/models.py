@@ -275,7 +275,7 @@ class User(db.Model, UserMixin):
 
     last_login_at = db.Column(db.DateTime)  # Date of last login
 
-    _posts_assoc = db.relationship('PostAuthorAssoc')
+    _posts_assoc = db.relationship('PostAuthorAssoc', overlaps="author")
     # This property should not directly modified
     posts = association_proxy('_posts_assoc', 'post')
 
@@ -401,7 +401,8 @@ class Post(db.Model):
     _authors_assoc = db.relationship('PostAuthorAssoc',
                                      order_by='PostAuthorAssoc.order',
                                      collection_class=ordering_list('order'),
-                                     cascade='all, delete-orphan')
+                                     cascade='all, delete-orphan',
+                                     overlaps="post")
     _authors = association_proxy('_authors_assoc', 'author',
                                  creator=lambda author: PostAuthorAssoc(author=author),)
 

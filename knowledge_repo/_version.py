@@ -21,7 +21,8 @@ __author__ = """
     Robert Chang,
     Dan Frank,
     Chetan Sharma,
-    Matthew Wardrop
+    Matthew Wardrop,
+    Randy Eckman
     """
 
 __author_email__ = """
@@ -35,10 +36,11 @@ __author_email__ = """
     robert.chang@airbnb.com,
     dan.frank@airbnb.com,
     chetan.sharma@airbnb.com,
-    mpwardrop@gmail.com
+    mpwardrop@gmail.com,
+    emanspeaks _at_ gmail.com
     """
 
-__version__ = "0.9.3"
+__version__ = "1.0.0"
 
 try:
     with open(os.devnull, "w") as devnull:
@@ -49,7 +51,7 @@ except Exception as e:
     print(f"Exception encountered: {e}")
     pass
 
-__git_uri__ = "https://github.com/airbnb/knowledge-repo.git"
+__git_uri__ = "https://github.com/emanspeaks/knowledge-repo.git"
 
 # These are the core dependencies, and should include all packages needed
 # for accessing repositories and running a non-server-side instance of the

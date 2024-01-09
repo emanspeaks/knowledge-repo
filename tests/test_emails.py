@@ -9,12 +9,14 @@ from knowledge_repo.app.models import Post, Subscription, Email, User
 from knowledge_repo.app.proxies import db_session
 from knowledge_repo.app.utils.emails import send_internal_error_email, send_subscription_emails, send_comment_email, \
     send_review_email
+from prep_tests import prep_tests
 
 
 class EmailTest(unittest.TestCase):
-
     @classmethod
     def setUpClass(self):
+        prep_tests(quiet=True)
+
         self.repo = KnowledgeRepository.for_uri('tests/test_repo', auto_create=True)
         self.app = self.repo.get_app(config='tests/config_server.py')
         self.app.repository.config.editors = ['knowledge_editors']

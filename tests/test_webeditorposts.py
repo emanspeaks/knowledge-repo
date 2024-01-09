@@ -1,10 +1,12 @@
 from bs4 import BeautifulSoup
 from knowledge_repo import KnowledgeRepository, KnowledgePost
+from knowledge_repo.app import KnowledgeFlask
 from knowledge_repo.app.models import Post
 from knowledge_repo.app.proxies import db_session
 import datetime
 import json
 import unittest
+from prep_tests import prep_tests
 
 
 class WebEditorPostTest(unittest.TestCase):
@@ -16,9 +18,10 @@ class WebEditorPostTest(unittest.TestCase):
 
         Create a webpost and a testuser
         """
+        prep_tests(quiet=True)
         cls.repo = KnowledgeRepository.for_uri('sqlite:///:memory::test_posts', auto_create=True)
         cls.repo.config.editors = ['test_knowledge_editor']
-        cls.app = cls.repo.get_app(config='tests/config_server.py')
+        cls.app: KnowledgeFlask = cls.repo.get_app(config='tests/config_server.py')
         cls.app.config['AUTH_USER_IDENTIFIER_REQUEST_HEADER'] = 'user_header'
         cls.app.config['DEBUG'] = True
         cls.client = cls.app.test_client()
@@ -66,7 +69,8 @@ class WebEditorPostTest(unittest.TestCase):
 
             rv = self.client.get('/webposts', headers={'user_header': 'webeditor_test_user'})
 
-            data = rv.data.decode('utf-8', 'html.parser')
+            data: bytearray = rv.data
+            data = data.decode('utf-8', 'html.parser')
             soup = BeautifulSoup(data, 'html.parser')
             table_rows = soup.findAll("tr")
 

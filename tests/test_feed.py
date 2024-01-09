@@ -4,9 +4,13 @@ from knowledge_repo import KnowledgeRepository
 from knowledge_repo.app.models import PageView, Comment, Vote
 from knowledge_repo.app.proxies import db_session
 from sqlalchemy import func
+from prep_tests import prep_tests
 
 
 class FeedTest(unittest.TestCase):
+    @classmethod
+    def setUpClass(self):
+        prep_tests(quiet=True)
 
     def setUp(self):
         self.repo = KnowledgeRepository.for_uri('tests/test_repo', auto_create=True)
@@ -38,7 +42,7 @@ class FeedTest(unittest.TestCase):
         for post in posts:
             title_link = post.findAll("a")[0]
             title_href = title_link['href']
-            title_text = title_link.string
+            # title_text = title_link.string
 
             assert (len(title_href))
             assert (self.app.get(title_href, headers=self.headers).status == "200 OK")
