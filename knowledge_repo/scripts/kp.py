@@ -26,7 +26,7 @@ def main():
     # Build argparser
 
     parser = argparse.ArgumentParser(add_help=False,
-                                    description='Tooling to aid with the authoring and submission of knowledge posts.')
+                                     description='Tooling to aid with the authoring and submission of knowledge posts.')
     parser.add_argument('--version', dest='version', action='store_true', help='Show version and exit.')
     parser.add_argument('--non-interactive', dest='interactive', action='store_false',
                         help='Run scripts in non-interactive mode.')
@@ -51,7 +51,7 @@ def main():
     from_.set_defaults(action='from')
     from_.add_argument('source', help='The path or url of the source file.')
     from_.add_argument('--format',
-                    help='The format to assume for the source file (overriding default detection algorithms).')
+                       help='The format to assume for the source file (overriding default detection algorithms).')
     from_.add_argument('--src', nargs='+', help='Specify additional files to be added as source files.')
     from_.add_argument('--overwrite', action='store_true', help='Overwrite any existing knowledge post.')
 
@@ -117,14 +117,12 @@ def main():
     if args.action == 'preview':
         from knowledge_repo.app.deploy import KnowledgeDeployer, get_app_builder
 
-
         def get_available_port():
             s = socket.socket()
             s.bind(("", 0))
             free_port = s.getsockname()[1]
             s.close()
             return free_port
-
 
         port = get_available_port()
 
@@ -133,21 +131,20 @@ def main():
         post_path = os.path.basename(post_path)
 
         app_builder = get_app_builder('file://' + repo_dir,
-                                    debug=False,
-                                    db_uri='sqlite:///:memory:',
-                                    config=None,
-                                    INDEXING_ENABLED=False)
+                                      debug=False,
+                                      db_uri='sqlite:///:memory:',
+                                      config=None,
+                                      INDEXING_ENABLED=False)
 
         url = 'http://localhost:{}/post/{}'.format(port, post_path)
         print(
-            "Previewing knowledge post at: {}\n\n"
+            f"Previewing knowledge post at: {url}\n\n"
             "If you are using `kp` locally, a browser window will shortly open at "
             "this address. Otherwise, please replace `localhost` with the hostname "
             "of the server upon which you are running this script, and manually "
             "point your browser at the resulting url.\n\n"
             "When you are ready to exit the preview, simply kill this process using "
             "`<Ctrl> + C`.\n"
-                .format(url)
         )
         threading.Timer(1.25, lambda: webbrowser.open(url)).start()
 

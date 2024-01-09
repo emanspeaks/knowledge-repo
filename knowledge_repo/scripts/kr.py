@@ -12,8 +12,7 @@ import threading
 import webbrowser
 from pathlib import Path
 
-import git
-import gitdb
+from git import GitError, ODBError
 from tabulate import tabulate
 
 # If this script is being run out of a checked out repository, we need to make
@@ -118,8 +117,7 @@ def handle_basic_args(parser: ArgumentParser, args: Namespace,
     # initialised will be enforced.
     try:
         repo = KnowledgeRepository.for_uri(args.repo)
-    except (ValueError, git.exc.GitError,
-            gitdb.exc.ODBError):  # TODO: Generalise error to cater for all KnowledgeRepository instances.
+    except (ValueError, GitError, ODBError):  # TODO: Generalise error to cater for all KnowledgeRepository instances.
         repo = None
 
     # Update repository so that we can ensure git repository configuration is up to date
@@ -331,8 +329,8 @@ def handle_args(args: Namespace, repo: KnowledgeRepository):
             raise ValueError(
                 "File already exists at '{}'. Please choose a different filename and try again.".format(args.filename))
         shutil.copy(src, args.filename)
-        print("Created a {format} knowledge post template at '{filename}'.".format(format=args.format,
-                                                                                filename=args.filename))
+        print(f"Created a {args.format} knowledge post template at "
+              f"'{args.filename}'.")
         raise SystemExit
 
     # # Check which branches have local work
@@ -340,7 +338,7 @@ def handle_args(args: Namespace, repo: KnowledgeRepository):
         statuses = repo.post_statuses(
             repo.dir(status=[repo.PostStatus.DRAFT, repo.PostStatus.SUBMITTED, repo.PostStatus.UNPUBLISHED]), detailed=True)
         print(tabulate([[path, status.name, details] for path, (status, details) in statuses.items()],
-                    ['Post', 'Status', 'Details'], 'fancy_grid'))
+                       ['Post', 'Status', 'Details'], 'fancy_grid'))
         raise SystemExit
 
     if args.action == 'status':
@@ -371,10 +369,10 @@ def handle_args(args: Namespace, repo: KnowledgeRepository):
 
     if args.action in ['preview', 'runserver']:
         app_builder = get_app_builder(args.repo,
-                                    debug=args.debug,
-                                    db_uri=args.dburi,
-                                    config=args.config,
-                                    INDEXING_ENABLED=(args.action == 'runserver'))
+                                      debug=args.debug,
+                                      db_uri=args.dburi,
+                                      config=args.config,
+                                      INDEXING_ENABLED=(args.action == 'runserver'))
 
         if args.action == 'preview':
             kp_path = repo._kp_path(args.path)
@@ -392,9 +390,9 @@ def handle_args(args: Namespace, repo: KnowledgeRepository):
 
     elif args.action == 'deploy':
         app_builder = get_app_builder(args.repo,
-                                    debug=args.debug,
-                                    db_uri=args.dburi,
-                                    config=args.config)
+                                      debug=args.debug,
+                                      db_uri=args.dburi,
+                                      config=args.config)
 
         server = KnowledgeDeployer.using(args.engine)(
             app_builder,

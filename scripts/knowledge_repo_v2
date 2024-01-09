@@ -11,8 +11,7 @@ import sys
 import threading
 import webbrowser
 
-import git
-import gitdb
+from git import GitError, ODBError
 from tabulate import tabulate
 
 # Note:
@@ -49,8 +48,7 @@ class ParseRepositories(argparse.Action):
 
     def __init__(self, **kwargs):
         super(ParseRepositories, self).__init__(**kwargs)
-        self.prefix_pattern = re.compile(
-            '^(?:\{(?P<name>[a-zA-Z_0-9]*)\})?(?P<uri>.*)$')
+        self.prefix_pattern = re.compile(r'^(?:\{(?P<name>[a-zA-Z_0-9]*)\})?(?P<uri>.*)$')
 
     def __call__(self, parser, namespace, values, option_string=None):
         if not getattr(namespace, self.dest) or getattr(namespace, self.dest) == self.default:
@@ -112,8 +110,7 @@ if args.repo is None:
 # initialised will be enforced.
 try:
     repo = knowledge_repo.KnowledgeRepository.for_uri(args.repo)
-except (ValueError, git.exc.GitError,
-        gitdb.exc.ODBError):  # TODO: Generalise error to cater for all KnowledgeRepository instances.
+except (ValueError, GitError, ODBError):  # TODO: Generalise error to cater for all KnowledgeRepository instances.
     repo = None
 
 # Update repository so that we can ensure git repository configuration is up to date
@@ -141,7 +138,7 @@ if repo is not None and not args.dev and repo.config.required_tooling_version:
 
         clone_kr_to_directory('~/.knowledge_repo/git')
         cmdline_args = [
-            '--noupdate'] + [arg.replace(' ', '\ ') if ' ' in arg else arg for arg in sys.argv[1:]]
+            '--noupdate'] + [arg.replace(' ', r'\ ') if ' ' in arg else arg for arg in sys.argv[1:]]
         with CheckedOutRevision('~/.knowledge_repo/git', required_version[1:]) as script_path:
             sys.exit(
                 subprocess.call(

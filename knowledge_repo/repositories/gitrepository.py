@@ -1,14 +1,14 @@
 from ..repository import KnowledgeRepository
 from ..utils.encoding import encode
 from ..utils.files import get_path
-from io import open
 from knowledge_repo.utils.files import read_binary, write_binary
-import git
 import logging
 import os
 import re
 import shutil
 import yaml
+from git import InvalidGitRepositoryError, GitCommandError, Submodule, Head
+from ..utils.git import RepoWrapper
 
 logger = logging.getLogger(__name__)
 
@@ -28,12 +28,12 @@ class GitKnowledgeRepository(KnowledgeRepository):
         path = uri.replace("git://", "")
         if os.path.exists(path):
             try:
-                repo = git.Repo(path)
+                repo = RepoWrapper(path)
                 logger.warning(
                     f"Repository already exists for uri '{uri}'. "
                     "Checking if configuration is needed..."
                 )
-            except git.InvalidGitRepositoryError:
+            except InvalidGitRepositoryError:
                 if os.path.isdir(path):
                     logger.warning(
                         f"Upgrading existing directory at '{path}' "
@@ -45,7 +45,7 @@ class GitKnowledgeRepository(KnowledgeRepository):
                         "Cannot proceed with repository initialization."
                     )
 
-        repo = git.Repo.init(path, mkdir=True)
+        repo = RepoWrapper.init(path, mkdir=True)
 
         # Add README and configuration templates
         added_files = 0
@@ -80,10 +80,10 @@ class GitKnowledgeRepository(KnowledgeRepository):
                 "behavior. Please talk to your local Knowledge Repo admins "
                 "for advice if you are unsure."
             )
-        except Exception as ex:
+        except Exception:
             # No need to print out the exception, as it is expected
             # print(f'Exception encountered: {ex}')
-            logger.info(".knowledge_repo_config.py was not found.")
+            logger.debug(".knowledge_repo_config.py was not found.")
             pass
 
         if config.startswith("git:///"):
@@ -121,15 +121,15 @@ class GitKnowledgeRepository(KnowledgeRepository):
 
     def __is_valid_repo(self, path):
         try:
-            git.Repo(path)
+            RepoWrapper(path)
             return True
-        except git.InvalidGitRepositoryError:
+        except InvalidGitRepositoryError:
             return False
 
     @property
     def git(self):
         if not hasattr(self, "_git"):
-            self._git = git.Repo(self.path)
+            self._git = RepoWrapper(self.path)
         return self._git
 
     @property
@@ -156,7 +156,7 @@ class GitKnowledgeRepository(KnowledgeRepository):
         logger.info("Fetching updates to the knowledge repository...")
         try:
             self.git_remote.fetch()
-        except git.exc.GitCommandError:
+        except GitCommandError:
             logger.warning(
                 "Cannot fetch from remote repository hosted "
                 f"on {self.__remote_host}. Continuing locally "
@@ -200,7 +200,7 @@ class GitKnowledgeRepository(KnowledgeRepository):
         return [
             o.path
             for o in tree.traverse(
-                prune=lambda i, d: isinstance(i, git.Submodule)
+                prune=lambda i, d: isinstance(i, Submodule)
                 or os.path.dirname(i.path).endswith(".kp"),
                 visit_once=False,
                 predicate=lambda i, d: i.path.endswith(".kp"),
@@ -280,7 +280,7 @@ class GitKnowledgeRepository(KnowledgeRepository):
                 try:
                     response = int(response)
                 except Exception as e:
-                    print(f"Exception encountered: {e}")
+                    logger.error(f"Exception encountered: {e}")
                     response = None
         else:
             response = 0
@@ -288,7 +288,7 @@ class GitKnowledgeRepository(KnowledgeRepository):
         return self.git_branch(branches[response])
 
     def git_branch(self, branch=None):
-        if isinstance(branch, git.Head):
+        if isinstance(branch, Head):
             return branch
         if branch is None:
             return self.git.active_branch
@@ -436,7 +436,7 @@ class GitKnowledgeRepository(KnowledgeRepository):
                 self.git.git.clean("-df", path)
                 self.git.git.checkout("--", path)
             except Exception as e:
-                print(f"Exception encountered: {e}")
+                logger.error(f"Exception encountered: {e}")
                 pass
             raise e
 
@@ -462,7 +462,7 @@ class GitKnowledgeRepository(KnowledgeRepository):
 
         try:
             self.git_remote.push(branch, force=force)
-        except git.exc.GitCommandError as e:
+        except GitCommandError as e:
             remote_name = self.config.remote_name
             remote_url = self.git_remote.url
             err = e.stderr.strip()
@@ -495,8 +495,11 @@ class GitKnowledgeRepository(KnowledgeRepository):
     def _kp_uuid(self, path):
         try:
             return self._kp_read_ref(path, "UUID")
+        except FileNotFoundError as e:
+            logger.debug(f"File {e.filename} not found, assuming no UUID assigned")
+            return None
         except Exception as e:
-            print(f"Exception encountered: {e}")
+            logger.error(f"Exception encountered: {e}")
             return None
 
     def _kp_path(self, path, rel=None):
@@ -549,8 +552,11 @@ class GitKnowledgeRepository(KnowledgeRepository):
         # than using git revisions because using git rev-parse is slow.
         try:
             return int(self._kp_read_ref(path, "REVISION"))
+        except FileNotFoundError as e:
+            logger.debug(f"File {e.filename} not found, assuming Revision 0")
+            return 0
         except Exception as e:
-            print(f"Exception encountered: {e}")
+            logger.error(f"Exception encountered: {e}")
             return 0
 
     def _kp_get_revisions(self, path):  # slow
