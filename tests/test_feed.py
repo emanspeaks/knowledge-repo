@@ -4,14 +4,9 @@ from knowledge_repo import KnowledgeRepository
 from knowledge_repo.app.models import PageView, Comment, Vote
 from knowledge_repo.app.proxies import db_session
 from sqlalchemy import func
-from prep_tests import prep_tests
 
 
 class FeedTest(unittest.TestCase):
-    @classmethod
-    def setUpClass(self):
-        prep_tests(quiet=True)
-
     def setUp(self):
         self.repo = KnowledgeRepository.for_uri('tests/test_repo', auto_create=True)
         self.repo_app = self.repo.get_app(config='tests/config_server.py')

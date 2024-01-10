@@ -6,7 +6,6 @@ from knowledge_repo.app.proxies import db_session
 import datetime
 import json
 import unittest
-from prep_tests import prep_tests
 
 
 class WebEditorPostTest(unittest.TestCase):
@@ -18,11 +17,13 @@ class WebEditorPostTest(unittest.TestCase):
 
         Create a webpost and a testuser
         """
-        prep_tests(quiet=True)
         cls.repo = KnowledgeRepository.for_uri('sqlite:///:memory::test_posts', auto_create=True)
         cls.repo.config.editors = ['test_knowledge_editor']
         cls.app: KnowledgeFlask = cls.repo.get_app(config='tests/config_server.py')
         cls.app.config['AUTH_USER_IDENTIFIER_REQUEST_HEADER'] = 'user_header'
+        cls.app.config['AUTH_USE_REQUEST_HEADERS'] = False
+        # cls.app.config['AUTH_USER_ATTRIBUTE_CACHE_LIFETIME'] = 0
+        cls.app.config['REMEMBER_COOKIE_DURATION'] = datetime.timedelta(days=0)
         cls.app.config['DEBUG'] = True
         cls.client = cls.app.test_client()
 

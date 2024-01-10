@@ -33,14 +33,16 @@ def prep_tests(quiet: bool = False):
         print(f"Creating a test repository in {test_repo_path}...")
 
     rmtree(str(test_repo_path), True)
-    repo = KnowledgeRepository.create_for_uri(uri)
-    test_repo_path.mkdir(parents=True)
-    copy(str(config_repo), str(test_repo_config))
+    test_repo_path.mkdir(parents=True, exist_ok=True)
 
-    gitrepo = git.Repo(test_repo_path)
+    gitrepo = git.Repo.init(str(test_repo_path), initial_branch='master')
     gitrepo.config_writer().set_value("user", "name", "Knowledge Developer").release()
     gitrepo.config_writer().set_value("user", "email", "knowledge_developer@example.com").release()
-    gitrepo.index.add(test_repo_config)
+
+    repo = KnowledgeRepository.create_for_uri(uri)
+    copy(str(config_repo), str(test_repo_config))
+
+    gitrepo.index.add(str(test_repo_config))
     gitrepo.index.commit("Update repository config.")
 
     kradd(repo, f'{templates/"knowledge_template.ipynb"}', 'projects/test/ipynb_test', message="Test commit", branch='master')
@@ -61,6 +63,9 @@ def prep_tests(quiet: bool = False):
 
     app = repo_app(repo, config=str(config_server))
     reindex(app)
+    gitrepo.close()
+    del gitrepo
+    del repo
 
 
 if __name__ == '__main__':

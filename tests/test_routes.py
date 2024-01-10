@@ -1,14 +1,9 @@
 import unittest
 
 from knowledge_repo import KnowledgeRepository
-from prep_tests import prep_tests
 
 
 class RouteTest(unittest.TestCase):
-    @classmethod
-    def setUpClass(self):
-        prep_tests(quiet=True)
-
     def setUp(self):
         self.repo = KnowledgeRepository.for_uri('tests/test_repo', auto_create=True)
         self.app = self.repo.get_app(config='tests/config_server.py').test_client()

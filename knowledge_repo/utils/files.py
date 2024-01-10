@@ -3,13 +3,11 @@ import yaml
 
 
 def read_text(filename):
-    with open(filename, 'r') as f:
-        return f.read()
+    return read_binary(filename).decode()
 
 
 def read_text_lines(filename):
-    with open(filename, 'r') as f:
-        return f.readlines()
+    return read_text(filename).splitlines(keepends=True)
 
 
 def read_yaml(filename):

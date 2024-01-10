@@ -6,14 +6,10 @@ import unittest
 from knowledge_repo import KnowledgeRepository
 from knowledge_repo.app.models import Tag, User, Subscription, Post, assoc_post_tag
 from knowledge_repo.app.proxies import db_session
-from prep_tests import prep_tests
 
 
 class TagsTest(unittest.TestCase):
     """The Test Class for all tag functionality."""
-    @classmethod
-    def setUpClass(self):
-        prep_tests(quiet=True)
 
     def setUp(self):
         """Set up the TagsTest Class by instantiating a tag."""

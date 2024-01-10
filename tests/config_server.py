@@ -51,7 +51,7 @@ def prepare_repo(repo):
 # a person's username - this is used for pageview tracking,
 # likes, favorites, etc. As a fallback, DEFAULT_USER is used.
 AUTH_USER_IDENTIFIER_REQUEST_HEADER = 'test_user_request_header'
-AUTH_USE_REQUEST_HEADERS = True
+AUTH_USE_REQUEST_HEADERS = False
 
 
 def AUTH_MAP_REQUEST_HEADERS(headers):

@@ -45,7 +45,7 @@ class GitKnowledgeRepository(KnowledgeRepository):
                         "Cannot proceed with repository initialization."
                     )
 
-        repo = RepoWrapper.init(path, mkdir=True)
+        repo = RepoWrapper.init(path, mkdir=True, initial_branch="master")
 
         # Add README and configuration templates
         added_files = 0
